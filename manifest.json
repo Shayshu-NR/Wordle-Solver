@@ -1,0 +1,22 @@
+{
+    "manifest_version" : 3,
+    "name" : "Wordle Guesser",
+    "description" : "Helps with solving Wordle",
+    "version" : "1.0",
+    "action" : {
+        "default_icon" : "wordle.png",
+        "default_popup" : "./popup.html"
+    },
+    "permissions" : [
+        "tabs",
+        "activeTab",
+        "scripting"
+    ],
+   "background" : {
+       "service_worker" : "./background.js"
+   },
+   "host_permissions": [
+        "https://www.powerlanguage.co.uk/*"
+    ]
+    
+}

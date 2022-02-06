@@ -12974,80 +12974,147 @@ let words = [
     "zymic",
 ];
 
-var alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
+var alphabet = [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "p",
+    "q",
+    "r",
+    "s",
+    "t",
+    "u",
+    "v",
+    "w",
+    "x",
+    "y",
+    "z",
+];
 var absentLetters = new Array();
-var presentLetters = new Array(5).fill('');
-var correctLetters = new Array(5).fill('');
+var presentLetters = new Array(5).fill("");
+var correctLetters = new Array(5).fill("");
 var guesses = new Array(5);
+var latestGuess = null;
 
 // Make sure the word only contains letters that are remaining
 function checkIfWordContainsLetters(wordToCheck, letters) {
-    return !letters.reduce((a, b) => a.replace(b, ''), wordToCheck.toLowerCase()).length;
+    return !letters.reduce(
+        (a, b) => a.replaceAll(b, ""),
+        wordToCheck.toLowerCase()
+    ).length;
 }
 
 function checkIfWordContainsLetterAtIndex(wordToCheck, correctLetters) {
     let res = true;
-    correctLetters.forEach((val, index) => val !== '' ? res &= wordToCheck[index] === val : res &= true);
+    correctLetters.forEach((val, index) =>
+        val !== "" ? (res &= wordToCheck[index] === val) : (res &= true)
+    );
     return res;
 }
 
 function checkIfWordContainsAPresentLetter(wordToCheck, presentLetters) {
     let res = true;
-    presentLetters.forEach(val => wordToCheck.includes(val) ? res &= true : res &= false)
+    presentLetters.forEach((val) =>
+        wordToCheck.includes(val) ? (res &= true) : (res &= false)
+    );
     return res;
 }
 
 // Return list of possible words
 function possibleWords(remainingLetters, correcLetters, presentLetters) {
-    return words.filter(val =>
-        checkIfWordContainsLetters(val, remainingLetters) &&
-        checkIfWordContainsLetterAtIndex(val, correcLetters) &&
-        checkIfWordContainsAPresentLetter(val, presentLetters)
+    return words.filter(
+        (val) =>
+            checkIfWordContainsLetters(val, remainingLetters) &&
+            checkIfWordContainsLetterAtIndex(val, correcLetters) &&
+            checkIfWordContainsAPresentLetter(val, presentLetters)
     );
 }
 
-
 function SetArrays(letterEvals) {
-    absentLetters = Object.keys(letterEvals).filter(key => letterEvals[key][0] === 'absent');
-    
-    for(const [key, value] of Object.entries(letterEvals)) {
-        if(value[0] === 'correct') {
-            correctLetters[value[1]] = key
-        }
-        else if(value[0] === 'present') {
+    absentLetters = Object.keys(letterEvals).filter(
+        (key) => letterEvals[key][0] === "absent"
+    );
+
+    for (const [key, value] of Object.entries(letterEvals)) {
+        if (value[0] === "correct") {
+            correctLetters[value[1]] = key;
+        } else if (value[0] === "present") {
             presentLetters.push(key);
         }
     }
 
-    alphabet = alphabet.filter(function(obj) {
+    alphabet = alphabet.filter(function (obj) {
         return absentLetters.indexOf(obj) == -1;
     });
-    console.log(correctLetters, presentLetters, absentLetters, alphabet)
+    console.log(correctLetters, presentLetters, absentLetters, alphabet);
+    let answers = possibleWords(alphabet, correctLetters, presentLetters);
+    console.log(answers);
 
-    return possibleWords(alphabet, correctLetters, presentLetters)[0];
+    return answers[0];
 }
 
+async function getCurrentTab() {
+    let queryOptions = { active: true, currentWindow: true };
+    let [tab] = await chrome.tabs.query(queryOptions);
+    return tab;
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+    chrome.storage.sync.set({
+        latestGuess: "ROATE",
+    });
+});
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (changeInfo.status === 'complete' && /^http/.test(tab.url)) {
-        chrome.scripting.executeScript({
-            target: {
-                tabId: tabId
-            },
-            files: ["./foreground.js"]
-        })
+    if (changeInfo.status === "complete" && /^http/.test(tab.url)) {
+        chrome.scripting
+            .executeScript({
+                target: {
+                    tabId: tabId,
+                },
+                files: ["./foreground.js"],
+            })
             .then(() => {
                 console.log("INJECTED THE FOREGROUND SCRIPT.");
             })
-            .catch(err => console.log(err));
+            .catch((err) => console.log(err));
     }
 });
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    console.log(request);
-    if(request.message === "evaluations") {
+chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
+    console.log("background", request);
+    if (request.message === "evaluations") {
         let guess = SetArrays(request.payload);
-        sendResponse({message : guess})
+        latestGuest = guess;
+        console.log(guess);
+        sendResponse({ message: guess });
+
+        chrome.storage.sync.set({ latestGuess: guess }, function () {
+            if (chrome.runtime.lastError) {
+                console.log(chrom.runtime.lastError.message);
+            } else {
+                console.log("Save to local storage");
+                chrome.storage.sync.get(["latestGuess"]).then(data => console.log(data));
+            }
+        });
+    } else if (request.message === "getlatestguess") {
+        chrome.storage.sync.get(["latestGuess"]).then(data => {
+            console.log(data);
+            sendResponse({
+                message: data,
+            });
+        });
     }
-    return;
 });
